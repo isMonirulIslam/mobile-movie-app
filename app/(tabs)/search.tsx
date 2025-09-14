@@ -1,10 +1,79 @@
-import { View, Text } from 'react-native'
-import React from 'react'
+/* eslint-disable react-hooks/exhaustive-deps */
+import React, { useEffect, useState } from 'react'
+import { images } from '@/constants/images'
+import MovieCard from '@/components/MovieCard'
+import useFetch from '@/services/useFetch'
+import { fetchMovies } from '@/services/api'
+import { icons } from '@/constants/icons'
+import SearchBar from '@/components/SearchBar'
+import { View, Text, Image, FlatList, ActivityIndicator } from 'react-native'
+import { updateSearchCount } from '@/services/appwrite'
 
 const Search = () => {
+  const [searchQuery, setSearchQuery] = useState('')
+  const {
+    data: movies,
+    loading,
+    error,
+    refetch: loadMovies,
+    reset,
+  } = useFetch(() => fetchMovies({ query: searchQuery }), false);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      if (searchQuery.trim()) {
+        await loadMovies()
+        if (movies?.length > 0 && movies[0]) {
+          await updateSearchCount(searchQuery, movies[0])
+        }
+      } else {
+        reset()
+      }
+    }, 500)
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery])
+
   return (
-    <View>
-      <Text>Search</Text>
+    <View className='flex-1 bg-primary'>
+      <Image source={images.bg} className='flex-1 absolute w-full' resizeMode='cover' />
+      <FlatList data={movies} renderItem={
+        ({ item }) => <MovieCard {...item} />
+      }
+        keyExtractor={(item) => item.id.toString()}
+        numColumns={3}
+        columnWrapperStyle={{
+          justifyContent: 'center',
+          marginVertical: 16,
+          gap: 16,
+        }}
+        contentContainerStyle={{
+          paddingBottom: 100,
+        }}
+        className='px-5'
+        ListHeaderComponent={<>
+          <View className='w-full flex-row justify-center mt-20'>
+            <Image source={icons.logo} className="w-12 h-10" />
+          </View>
+          <View className='my-5'>
+            <SearchBar
+              placeholder="Search movies..."
+              value={searchQuery}
+              onChangeText={(text) => setSearchQuery(text)}
+            />
+            {loading && <ActivityIndicator size="large" color="#0000FF" className='my-3' />}
+            {error && <Text className='text-red-500 px-5 my-3'>Error: {error?.message}</Text>}
+            {!loading && !error && searchQuery.trim() && movies?.length > 0 && <Text className='text-white text-xl font-bold mt-5 mb-3'>
+              Search Results for {''}
+              <Text className='text-accent'>{searchQuery}</Text>
+            </Text>}
+          </View>
+        </>}
+        ListEmptyComponent={
+          !loading && !error ? <View className='mt-10 px-5'>
+            <Text className='text-center text-gray-500'>{searchQuery?.trim() ? 'No results found' : 'Search for a movie'}</Text>
+          </View> : null
+        }
+      />
     </View>
   )
 }
